@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="sidepanel.css" />
+    <title>AI 视频总结</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">✦</div>
+        <div class="brand-text">
+          <div class="app-name">AI 视频总结</div>
+          <div class="video-title" id="videoTitle">等待视频…</div>
+        </div>
+      </div>
+      <button class="icon-btn" id="settingsBtn" title="设置" aria-label="设置">⚙</button>
+    </header>
+
+    <div class="page-badge" id="pageBadge"></div>
+
+    <section class="progress-wrap" id="progressWrap" hidden>
+      <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+    </section>
+    <div class="status" id="status">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">打开一个 B站 / YouTube 视频，点击“开始分析”</span>
+    </div>
+
+    <main class="content" id="content">
+      <section class="card overview-card" id="overviewCard" hidden>
+        <div class="card-head"><span class="card-icon">🧭</span><h3>内容总览</h3></div>
+        <p class="overview-text" id="overviewText"></p>
+        <div class="chips" id="keyPoints"></div>
+      </section>
+
+      <section class="card moments-card" id="momentsCard" hidden>
+        <div class="card-head"><span class="card-icon">⭐</span><h3>关键节点</h3></div>
+        <div class="moments" id="moments"></div>
+      </section>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-tab="timeline">时间轴</button>
+        <button class="tab" data-tab="subtitle">字幕</button>
+        <button class="tab" data-tab="chat">问答</button>
+        <button class="tab" data-tab="questions">待解问题</button>
+      </nav>
+
+      <section class="tab-panel" id="panel-timeline">
+        <div class="empty" id="timelineEmpty">
+          <div class="empty-emoji">🗂️</div>
+          <p>分析后，这里会按时间轴列出每一段的要点，点击即可跳转。</p>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <section class="tab-panel" id="panel-subtitle" hidden>
+        <div class="search-wrap">
+          <input type="search" id="searchInput" placeholder="搜索字幕内容…" />
+        </div>
+        <div class="empty" id="subtitleEmpty">
+          <div class="empty-emoji">💬</div>
+          <p>暂无字幕。若视频没有字幕，点底部“实时识别”采集音频转写。</p>
+        </div>
+        <div class="subtitle-list" id="subtitleList"></div>
+      </section>
+
+      <section class="tab-panel" id="panel-chat" hidden>
+        <div class="chat-list" id="chatList">
+          <div class="empty" id="chatEmpty">
+            <div class="empty-emoji">🤖</div>
+            <p>基于已获取的字幕内容提问，例如“视频的核心结论是什么？”</p>
+          </div>
+        </div>
+        <div class="chat-input-wrap">
+          <input type="text" id="chatInput" placeholder="输入你的问题…" />
+          <button class="send-btn" id="chatSend" aria-label="发送">↑</button>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="panel-questions" hidden>
+        <div class="empty" id="questionsEmpty">
+          <div class="empty-emoji">❓</div>
+          <p>视频中提出但未解答的问题会汇总在这里。</p>
+        </div>
+        <ul class="question-list" id="questionList"></ul>
+      </section>
+    </main>
+
+    <footer class="actions">
+      <button class="btn primary" id="startBtn">开始分析</button>
+      <button class="btn ghost" id="asrBtn">实时识别</button>
+    </footer>
+
+    <div class="settings-drawer" id="settingsDrawer" hidden>
+      <div class="drawer-head">
+        <h3>设置</h3>
+        <button class="icon-btn" id="settingsClose" aria-label="关闭">×</button>
+      </div>
+      <label class="field">
+        <span>后端地址</span>
+        <input type="text" id="cfgBackend" placeholder="http://127.0.0.1:8787" />
+      </label>
+      <label class="field">
+        <span>语言</span>
+        <select id="cfgLang">
+          <option value="auto">自动</option>
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
+          <option value="ko">한국어</option>
+        </select>
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="cfgCorrect" />
+        <span>对 AI 字幕 / ASR 做 LLM 纠错</span>
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="cfgAutoStart" />
+        <span>打开视频页自动分析</span>
+      </label>
+      <div class="health" id="health">检测服务中…</div>
+      <button class="btn primary" id="saveSettings">保存</button>
+      <p class="hint">
+        后端需运行 video-summary 服务。无字幕时点“实时识别”，扩展会用 tabCapture 采集标签页音频。
+      </p>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "AI 视频实时总结 (B站 / YouTube)",
+  "version": "0.2.0",
+  "description": "侧边栏实时总结：优先读取平台字幕（含 AI 字幕纠错），无字幕用 tabCapture 采集标签页音频做 ASR；支持关键节点跳转与内容问答。",
+  "permissions": ["storage", "sidePanel", "offscreen", "tabCapture", "tabs", "activeTab", "scripting"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://api.bilibili.com/*",
+    "https://*.hdslb.com/*",
+    "https://www.youtube.com/*",
+    "https://*.youtube.com/*",
+    "https://*.googlevideo.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.bilibili.com/video/*",
+        "https://www.bilibili.com/bangumi/play/*",
+        "https://www.bilibili.com/list/*",
+        "https://www.youtube.com/*",
+        "https://m.youtube.com/*"
+      ],
+      "js": ["src/content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "AI 视频总结（打开侧边栏）",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  }
+}

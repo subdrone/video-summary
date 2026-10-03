@@ -1,0 +1,26 @@
+{
+  "name": "video-summary",
+  "version": "0.1.0",
+  "description": "AI 实时视频总结：优先抓取平台字幕（含 AI 字幕纠错），无字幕时用 ASR 转写，实时滚动总结 B站/YouTube。",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "smoke": "node scripts/smoke.js",
+    "icons": "node scripts/gen-icons.js"
+  },
+  "keywords": [
+    "bilibili",
+    "youtube",
+    "whisper",
+    "llm",
+    "summary",
+    "userscript"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.2.1",
+    "ws": "^8.22.0"
+  }
+}

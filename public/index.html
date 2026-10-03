@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>video-summary 控制台</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: #0b0d13; color: #e5e7eb; line-height: 1.6;
+      }
+      .wrap { max-width: 960px; margin: 0 auto; padding: 28px 20px 80px; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      .sub { color: #94a3b8; font-size: 13px; margin-bottom: 22px; }
+      .badge { display:inline-block; font-size:12px; padding:2px 10px; border-radius:999px; margin-right:8px; }
+      .ok { background:rgba(34,197,94,.18); color:#4ade80; }
+      .bad { background:rgba(239,68,68,.18); color:#f87171; }
+      section { background:#11131c; border:1px solid rgba(255,255,255,.07); border-radius:14px; padding:18px; margin-bottom:18px; }
+      h2 { font-size:15px; margin:0 0 12px; color:#a5b4fc; }
+      input[type=text], textarea {
+        width:100%; background:#0b0d13; border:1px solid rgba(255,255,255,.12); color:#e5e7eb;
+        border-radius:9px; padding:10px 12px; font-size:13.5px; outline:none; font-family:inherit;
+      }
+      textarea { min-height:120px; resize:vertical; }
+      button {
+        cursor:pointer; border:0; border-radius:9px; padding:9px 16px; font-size:13.5px; color:#fff;
+        background:linear-gradient(135deg,#6366f1,#8b5cf6); margin-top:10px;
+      }
+      button.ghost { background:rgba(255,255,255,.08); }
+      button:disabled { opacity:.5; cursor:default; }
+      .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+      .muted { color:#94a3b8; font-size:12.5px; }
+      .timeline { margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+      .tl { border-left:2px solid rgba(129,140,248,.5); padding:6px 0 6px 10px; }
+      .tl .t { color:#818cf8; font-size:12px; font-variant-numeric:tabular-nums; }
+      .tl .h { font-weight:600; color:#f1f5f9; }
+      .tl .b { color:#94a3b8; font-size:13px; }
+      pre { white-space:pre-wrap; word-break:break-word; background:#0b0d13; border:1px solid rgba(255,255,255,.07); border-radius:9px; padding:12px; font-size:12.5px; margin:10px 0 0; }
+      .live { font-size:13px; color:#cbd5e1; min-height:24px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>video-summary 控制台</h1>
+      <div class="sub">本地调试：字幕抓取 → LLM 纠错 → 滚动总结 → 问答 / 实时 ASR</div>
+
+      <section>
+        <h2>服务状态</h2>
+        <div>
+          <span id="h-ok" class="badge">·</span>
+          <span class="muted" id="h-info">检测中…</span>
+        </div>
+      </section>
+
+      <section>
+        <h2>1. 抓取视频字幕（B站 / YouTube）</h2>
+        <div class="row">
+          <input type="text" id="url" style="flex:1;min-width:280px" placeholder="https://www.bilibili.com/video/BVxxxx 或 https://youtu.be/xxxx" />
+          <button id="fetch">抓取</button>
+        </div>
+        <div class="muted" id="fetch-info" style="margin-top:8px"></div>
+        <textarea id="transcript" placeholder="抓取到的字幕（也可直接粘贴文本，按行一条）"></textarea>
+        <div class="row">
+          <button id="run">纠错 + 总结</button>
+          <label class="muted"><input type="checkbox" id="correct" checked /> LLM 纠错</label>
+        </div>
+      </section>
+
+      <section>
+        <h2>2. 实时 ASR（用麦克风验证）</h2>
+        <div class="row">
+          <button id="mic">开始录音识别</button>
+          <span class="muted">需要后端 ASR_PROVIDER != mock</span>
+        </div>
+        <div class="live" id="live" style="margin-top:10px"></div>
+      </section>
+
+      <section>
+        <h2>3. 总结结果</h2>
+        <div id="overview" class="muted">—</div>
+        <ul id="keypoints"></ul>
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <section>
+        <h2>4. 视频问答</h2>
+        <div class="row">
+          <input type="text" id="q" style="flex:1;min-width:240px" placeholder="就内容提问…" />
+          <button id="ask">提问</button>
+        </div>
+        <pre id="answer" style="display:none"></pre>
+      </section>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      let sessionId = null;
+      const api = async (path, body, method = 'POST') => {
+        const r = await fetch(path, {
+          method,
+          headers: { 'content-type': 'application/json' },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+        return j;
+      };
+
+      (async () => {
+        try {
+          const h = await (await fetch('/api/health')).json();
+          $('h-ok').className = 'badge ' + (h.llm ? 'ok' : 'bad');
+          $('h-ok').textContent = h.llm ? 'LLM 已配置' : 'LLM 未配置';
+          $('h-info').textContent = `模型 ${h.llmModel} · ASR ${h.asrProvider}`;
+        } catch {
+          $('h-ok').className = 'badge bad';
+          $('h-ok').textContent = '服务不可用';
+        }
+      })();
+
+      $('fetch').onclick = async () => {
+        $('fetch-info').textContent = '抓取中…';
+        try {
+          const d = await api('/api/subtitle?url=' + encodeURIComponent($('url').value.trim()), null, 'GET');
+          $('transcript').value = d.segments.map((s) => s.text).join('\n');
+          $('fetch-info').textContent = `${d.platform} · ${d.segments.length} 条 · ${d.aiGenerated ? 'AI 字幕（将纠错）' : '官方字幕'}`;
+        } catch (e) {
+          $('fetch-info').textContent = '抓取失败: ' + e.message;
+        }
+      };
+
+      $('run').onclick = async () => {
+        const lines = $('transcript').value.split('\n').map((t) => t.trim()).filter(Boolean);
+        if (!lines.length) return alert('没有字幕内容');
+        const segments = lines.map((text, i) => ({ start: i * 3, end: i * 3 + 3, text, source: 'auto-cc' }));
+        $('run').disabled = true;
+        try {
+          let segs = segments;
+          if ($('correct').checked) {
+            const c = await api('/api/correct', { segments, lang: 'auto', domain: 'web' });
+            segs = c.segments;
+          }
+          const s = await api('/api/summarize', { segments: segs, lang: 'auto', domain: 'web', force: true, final: true });
+          sessionId = s.sessionId;
+          render(s);
+        } catch (e) {
+          alert('失败: ' + e.message);
+        } finally {
+          $('run').disabled = false;
+        }
+      };
+
+      function render(s) {
+        $('overview').textContent = s.global?.overview || '—';
+        $('keypoints').innerHTML = (s.global?.keyPoints || []).map((k) => `<li>${esc(k)}</li>`).join('');
+        $('timeline').innerHTML = (s.chunks || [])
+          .map(
+            (c) =>
+              `<div class="tl"><span class="t">${fmt(c.start)} - ${fmt(c.end)}</span> <span class="h">${esc(c.title)}</span><div class="b">${esc((c.bullets || []).join(' · '))}</div></div>`,
+          )
+          .join('');
+      }
+      const esc = (s) => String(s).replace(/[&<>]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[m]);
+      const fmt = (t) => `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
+      $('ask').onclick = async () => {
+        if (!sessionId) return alert('请先运行总结');
+        $('answer').style.display = 'block';
+        $('answer').textContent = '思考中…';
+        try {
+          const r = await api('/api/chat', { sessionId, question: $('q').value });
+          $('answer').textContent = r.answer;
+        } catch (e) {
+          $('answer').textContent = '出错: ' + e.message;
+        }
+      };
+
+      // ---- 实时 ASR 录音 ----
+      const WORKLET = `
+        class P extends AudioWorkletProcessor{
+          constructor(){super();this.p=0;this.r=sampleRate/16000;this.b=[];}
+          process(i){const c=i[0]&&i[0][0];if(!c)return true;
+            for(let k=0;k<c.length;k++){this.p+=1;if(this.p>=this.r){this.p-=this.r;let s=Math.max(-1,Math.min(1,c[k]));this.b.push(s<0?s*0x8000:s*0x7fff);}}
+            if(this.b.length>=1600){const a=Int16Array.from(this.b);this.port.postMessage(a.buffer,[a.buffer]);this.b=[];}
+            return true;}}
+        registerProcessor('p',P);`;
+      let rec = null;
+      $('mic').onclick = async () => {
+        if (rec) {
+          rec.node.disconnect();
+          rec.stream.getTracks().forEach((t) => t.stop());
+          rec.ctx.close();
+          rec = null;
+          $('mic').textContent = '开始录音识别';
+          return;
+        }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const ctx = new AudioContext();
+          await ctx.resume();
+          const src = ctx.createMediaStreamSource(stream);
+          await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
+          const node = new AudioWorkletNode(ctx, 'p');
+          src.connect(node);
+          const sink = ctx.createGain();
+          sink.gain.value = 0;
+          node.connect(sink);
+          sink.connect(ctx.destination);
+          const sid = 'web-' + Math.random().toString(36).slice(2);
+          await api('/api/asr/reset', { session: sid });
+          let chain = Promise.resolve();
+          node.port.onmessage = (e) => {
+            chain = chain.then(async () => {
+              const r = await fetch(`/api/asr/chunk?session=${sid}&lang=auto`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/octet-stream' },
+                body: e.data,
+              });
+              const j = await r.json();
+              if (j.text) $('live').textContent += j.text + ' ';
+            }).catch(() => {});
+          };
+          rec = { ctx, node, src, stream };
+          $('mic').textContent = '停止识别';
+          $('live').textContent = '';
+        } catch (e) {
+          alert('麦克风失败: ' + e.message);
+        }
+      };
+    </script>
+  </body>
+</html>
